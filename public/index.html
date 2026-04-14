@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic Beans 🫘</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1a4a1a 0%, #2d6b2d 50%, #1a4a1a 100%);
+    min-height: 100vh;
+    color: #fff;
+    overflow-x: hidden;
+  }
+  .game-header {
+    text-align: center; padding: 15px;
+    background: rgba(0,0,0,0.3); border-bottom: 2px solid #4a2;
+  }
+  .game-header h1 { font-size: 2em; color: #7f3; text-shadow: 0 0 20px rgba(100,255,50,0.5); letter-spacing: 3px; }
+  .game-header .subtitle { font-size: 0.85em; color: #9c9; margin-top: 4px; }
+  .game-container { max-width: 1200px; margin: 0 auto; padding: 10px; }
+  .info-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 20px; background: rgba(0,0,0,0.25); border-radius: 10px; margin: 10px 0;
+  }
+  .turn-indicator { font-size: 1.2em; font-weight: bold; color: #7f3; }
+  .pile-count { background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; font-size: 0.9em; }
+  .score-display { display: flex; gap: 20px; }
+  .score-display span { font-size: 0.95em; }
+  .beanstalk-area {
+    background: rgba(0,0,0,0.2); border-radius: 15px; padding: 15px; margin: 10px 0; min-height: 100px;
+  }
+  .beanstalk-area.yours { border: 2px solid rgba(100,255,50,0.3); }
+  .beanstalk-label { font-size: 0.85em; color: #9c9; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .beanstalk-scroll {
+    overflow-y: auto; overflow-x: hidden; max-height: 250px; padding: 10px 0;
+    scrollbar-width: thin; scrollbar-color: #4a2 transparent;
+    display: flex; flex-direction: column-reverse;
+  }
+  .beanstalk-chain {
+    display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; min-height: 40px;
+  }
+  .domino {
+    display: inline-flex; background: #f5f0e0; border-radius: 6px; border: 2px solid #a89060;
+    cursor: pointer; transition: all 0.2s; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+    position: relative; flex-shrink: 0;
+  }
+  .domino.horizontal { flex-direction: row; width: 70px; height: 38px; }
+  .domino.vertical { flex-direction: column; width: 38px; height: 70px; }
+  .domino .half { display: flex; align-items: center; justify-content: center; position: relative; }
+  .domino.horizontal .half { width: 33px; height: 34px; }
+  .domino.vertical .half { width: 34px; height: 33px; }
+  .domino .divider { background: #a89060; }
+  .domino.horizontal .divider { width: 2px; height: 100%; }
+  .domino.vertical .divider { width: 100%; height: 2px; }
+  .domino:hover:not(.played):not(.disabled) { transform: translateY(-5px); box-shadow: 2px 8px 15px rgba(0,0,0,0.4); border-color: #7f3; }
+  .domino.magic-bean { background: linear-gradient(135deg, #ffe0f0, #fff0e0, #e0ffe0, #e0f0ff); border-color: #c8a; animation: magic-shimmer 2s infinite; }
+  @keyframes magic-shimmer { 0%,100%{box-shadow:0 0 8px rgba(200,100,200,0.4);}50%{box-shadow:0 0 15px rgba(200,100,200,0.7);} }
+  .domino.played { cursor: default; }
+  .domino.played.magic-bean-placed { background: linear-gradient(135deg, #ffe0f0, #fff0e0, #e0ffe0, #e0f0ff); }
+  .domino.disabled { opacity: 0.5; cursor: not-allowed; }
+  .pip { width: 6px; height: 6px; background: #333; border-radius: 50%; position: absolute; }
+  .hand-area { background: rgba(0,0,0,0.25); border-radius: 15px; padding: 15px; margin: 10px 0; }
+  .hand-label { font-size: 0.9em; color: #9c9; margin-bottom: 8px; }
+  .hand-tiles { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; min-height: 50px; }
+  .actions { display: flex; gap: 10px; justify-content: center; margin: 15px 0; flex-wrap: wrap; }
+  .btn {
+    padding: 10px 25px; border: none; border-radius: 25px; font-size: 1em;
+    font-weight: bold; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-play { background: linear-gradient(135deg, #4a2, #7f3); color: #000; }
+  .btn-draw { background: linear-gradient(135deg, #a64, #d96); color: #fff; }
+  .btn-pass { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+  .btn-new { background: linear-gradient(135deg, #36a, #58d); color: #fff; }
+  .message-area { text-align: center; min-height: 40px; display: flex; align-items: center; justify-content: center; padding: 10px; }
+  .message { font-size: 1.1em; padding: 8px 20px; border-radius: 20px; animation: fadeIn 0.3s; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);} }
+  .message.info { background: rgba(100,200,255,0.2); color: #8df; }
+  .message.success { background: rgba(100,255,100,0.2); color: #7f3; }
+  .message.warning { background: rgba(255,200,100,0.2); color: #fa6; }
+  .message.magic, .message.magicBean { background: rgba(200,100,255,0.2); color: #d8f; }
+  .message.salute { background: rgba(255,200,50,0.3); color: #fd4; font-size: 1.3em; }
+  .message.steal { background: rgba(200,100,255,0.2); color: #d8f; }
+  .message.sixChain { background: rgba(100,255,100,0.2); color: #7f3; }
+  .message.beanedOut { background: rgba(255,200,100,0.2); color: #fa6; }
+  .message.draw { background: rgba(100,200,255,0.2); color: #8df; }
+  .message.lastChance { background: rgba(255,200,100,0.2); color: #fa6; }
+  .message.error { background: rgba(255,100,100,0.2); color: #f88; }
+
+  .flying-dutchman-overlay {
+    display: none; position: fixed; top:0;left:0;right:0;bottom:0;
+    background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center; flex-direction: column;
+  }
+  .flying-dutchman-overlay.visible { display: flex; animation: fadeIn 0.3s; }
+  .flying-dutchman-overlay .salute-text { font-size: 3em; color: #fd4; text-shadow: 0 0 30px rgba(255,200,50,0.5); margin-bottom: 20px; }
+  .flying-dutchman-overlay .salute-emoji { font-size: 5em; animation: salute-bounce 0.5s ease-in-out infinite alternate; }
+  @keyframes salute-bounce { from{transform:rotate(-10deg);}to{transform:rotate(10deg);} }
+
+  .game-over-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.8); z-index:200; justify-content:center; align-items:center; }
+  .game-over-overlay.visible { display: flex; }
+  .game-over-card { background: linear-gradient(135deg, #1a3a1a, #2a5a2a); border: 2px solid #4a2; border-radius: 20px; padding: 40px; text-align: center; max-width: 400px; }
+  .game-over-card h2 { font-size: 2em; color: #7f3; margin-bottom: 20px; }
+  .game-over-card .final-scores { font-size: 1.2em; margin: 20px 0; line-height: 2; }
+  .game-over-card .winner-text { font-size: 1.5em; color: #fd4; margin: 15px 0; }
+
+  /* Lobby screen */
+  .lobby-screen { position:fixed; top:0;left:0;right:0;bottom:0; background:linear-gradient(135deg,#1a4a1a 0%,#2d6b2d 50%,#1a4a1a 100%); z-index:300; display:flex; justify-content:center; align-items:center; }
+  .lobby-screen.hidden { display: none; }
+  .lobby-card { text-align: center; max-width: 500px; padding: 40px; width: 90%; }
+  .lobby-card h1 { font-size: 3em; color: #7f3; text-shadow: 0 0 30px rgba(100,255,50,0.4); margin-bottom: 10px; }
+  .lobby-card .tagline { color: #9c9; font-size: 1.1em; margin-bottom: 30px; }
+  .lobby-card input {
+    display: block; width: 100%; padding: 12px 20px; margin: 10px 0;
+    border: 2px solid #4a2; border-radius: 10px; background: rgba(0,0,0,0.3); color: #fff; font-size: 1em; outline: none;
+  }
+  .lobby-card input:focus { border-color: #7f3; }
+  .lobby-card .picker { margin: 15px 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .picker-btn {
+    padding: 10px 20px; border: 2px solid #4a2; border-radius: 10px; background: rgba(0,0,0,0.3);
+    color: #9c9; font-size: 1em; cursor: pointer; transition: all 0.2s;
+  }
+  .picker-btn.active { border-color: #7f3; color: #7f3; background: rgba(100,255,50,0.1); }
+  .tab-btns { display: flex; gap: 0; margin-bottom: 20px; }
+  .tab-btn {
+    flex: 1; padding: 12px; border: 2px solid #4a2; background: rgba(0,0,0,0.3);
+    color: #9c9; font-size: 1em; cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn:first-child { border-radius: 10px 0 0 10px; }
+  .tab-btn:last-child { border-radius: 0 10px 10px 0; }
+  .tab-btn.active { border-color: #7f3; color: #7f3; background: rgba(100,255,50,0.1); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .room-code-display {
+    font-size: 3em; color: #fd4; letter-spacing: 10px; margin: 20px 0;
+    text-shadow: 0 0 20px rgba(255,200,50,0.5); font-weight: bold;
+  }
+  .waiting-area { margin: 20px 0; }
+  .player-list { list-style: none; margin: 15px 0; }
+  .player-list li { padding: 8px 15px; margin: 5px 0; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 1.1em; }
+  .player-list li.you { border: 1px solid #7f3; color: #7f3; }
+  .rules-section { background:rgba(0,0,0,0.2); border-radius:10px; padding:15px; margin:20px 0; text-align:left; font-size:0.85em; color:#9c9; line-height:1.6; }
+  .rules-section h3 { color:#7f3; margin-bottom:8px; text-align:center; }
+
+  /* Steal picker */
+  .steal-overlay {
+    display:none; position:fixed; top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.7); z-index:150; justify-content:center; align-items:center;
+  }
+  .steal-overlay.visible { display:flex; }
+  .steal-card {
+    background:linear-gradient(135deg,#1a3a1a,#2a5a2a); border:2px solid #a6d;
+    border-radius:20px; padding:30px; max-width:90%; max-height:80vh; overflow-y:auto; text-align:center;
+  }
+  .steal-card h3 { color:#d8f; margin-bottom:15px; }
+  .steal-player-section { margin: 15px 0; }
+  .steal-player-section .label { color:#9c9; font-size:0.9em; margin-bottom:8px; }
+  .steal-tiles { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .steal-tiles .domino.stealable:hover { border-color:#d8f; box-shadow:0 0 12px rgba(200,100,255,0.6); }
+  .steal-tiles .domino.nosteal { opacity:0.3; cursor:not-allowed; }
+
+  /* Orientation picker */
+  .orient-overlay {
+    display:none; position:fixed; top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.7); z-index:150; justify-content:center; align-items:center;
+  }
+  .orient-overlay.visible { display:flex; }
+  .orient-card {
+    background:linear-gradient(135deg,#1a3a1a,#2a5a2a); border:2px solid #4a2;
+    border-radius:20px; padding:30px; text-align:center;
+  }
+  .orient-options { display:flex; gap:30px; justify-content:center; margin:20px 0; }
+  .orient-option { text-align:center; cursor:pointer; padding:10px; border-radius:10px; transition:all 0.2s; }
+  .orient-option:hover { background:rgba(100,255,50,0.1); }
+  .orient-option .top-label { color:#7f3; font-weight:bold; margin-bottom:5px; }
+
+  @media (max-width: 600px) {
+    .game-header h1 { font-size: 1.4em; }
+    .info-bar { flex-direction: column; gap: 8px; font-size: 0.85em; }
+    .domino.horizontal { width: 56px; height: 30px; }
+    .domino.horizontal .half { width: 26px; height: 26px; }
+    .domino.vertical { width: 30px; height: 56px; }
+    .domino.vertical .half { width: 26px; height: 26px; }
+    .pip { width: 4px; height: 4px; }
+    .lobby-card h1 { font-size: 2em; }
+    .room-code-display { font-size: 2em; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Lobby Screen -->
+<div class="lobby-screen" id="lobbyScreen">
+  <div class="lobby-card">
+    <h1>MAGIC BEANS</h1>
+    <p class="tagline">Online multiplayer domino beanstalk game</p>
+
+    <!-- Tabs: Create / Join -->
+    <div class="tab-btns">
+      <button class="tab-btn active" onclick="showTab('create')">Create Room</button>
+      <button class="tab-btn" onclick="showTab('join')">Join Room</button>
+    </div>
+
+    <!-- Create Room Panel -->
+    <div class="tab-panel active" id="tab-create">
+      <input type="text" id="createName" placeholder="Your name" maxlength="20">
+      <div style="margin:10px 0;">
+        <label style="color:#9c9;font-size:0.9em;">Players:</label>
+        <div class="picker" id="playerCountPicker">
+          <button class="picker-btn active" data-val="2">2</button>
+          <button class="picker-btn" data-val="3">3</button>
+          <button class="picker-btn" data-val="4">4</button>
+        </div>
+      </div>
+      <div style="margin:10px 0;">
+        <label style="color:#9c9;font-size:0.9em;">Tiles per player:</label>
+        <div class="picker" id="tileCountPicker">
+          <button class="picker-btn" data-val="3">3</button>
+          <button class="picker-btn" data-val="5">5</button>
+          <button class="picker-btn active" data-val="7">7</button>
+          <button class="picker-btn" data-val="9">9</button>
+        </div>
+      </div>
+      <button class="btn btn-play" onclick="createRoom()" style="font-size:1.1em;padding:12px 40px;margin-top:15px;">
+        CREATE ROOM
+      </button>
+    </div>
+
+    <!-- Join Room Panel -->
+    <div class="tab-panel" id="tab-join">
+      <input type="text" id="joinName" placeholder="Your name" maxlength="20">
+      <input type="text" id="joinCode" placeholder="Room code (e.g. AB3K)" maxlength="4" style="text-transform:uppercase;text-align:center;font-size:1.5em;letter-spacing:5px;">
+      <button class="btn btn-play" onclick="joinRoom()" style="font-size:1.1em;padding:12px 40px;margin-top:15px;">
+        JOIN ROOM
+      </button>
+    </div>
+
+    <div class="rules-section">
+      <h3>How to Play</h3>
+      <p>&#8226; Build the tallest beanstalk by matching domino ends<br>
+         &#8226; After each play, auto-draw one tile from the pile<br>
+         &#8226; <b>Magic Beans</b> (doubles) = extra turn + steal from opponent!<br>
+         &#8226; <b>Flying Dutchman</b> (double 6) = everyone salutes!<br>
+         &#8226; Can't play? Draw one tile. No match = turn passes<br>
+         &#8226; 6 on top + 6 in hand = chain play!<br>
+         &#8226; Most pips on beanstalk wins!</p>
+    </div>
+  </div>
+</div>
+
+<!-- Waiting Room -->
+<div class="lobby-screen hidden" id="waitingScreen">
+  <div class="lobby-card">
+    <h1>MAGIC BEANS</h1>
+    <p class="tagline">Share this room code with friends:</p>
+    <div class="room-code-display" id="roomCodeDisplay">----</div>
+    <button class="btn btn-pass" onclick="copyRoomCode()" id="copyBtn">Copy Code</button>
+    <div class="waiting-area">
+      <p style="color:#9c9;margin:15px 0;">Waiting for players...</p>
+      <ul class="player-list" id="playerList"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- Flying Dutchman Overlay -->
+<div class="flying-dutchman-overlay" id="flyingDutchman">
+  <div class="salute-emoji">🫡</div>
+  <div class="salute-text">FLYING DUTCHMAN!</div>
+  <p style="color:#ccc;font-size:1.1em;">Double 6! Everyone salute!</p>
+</div>
+
+<!-- Steal Overlay -->
+<div class="steal-overlay" id="stealOverlay">
+  <div class="steal-card">
+    <h3>Steal a tile from an opponent's beanstalk!</h3>
+    <div id="stealContent"></div>
+    <button class="btn btn-pass" onclick="skipSteal()" style="margin-top:15px;">Skip Steal</button>
+  </div>
+</div>
+
+<!-- Orientation Overlay -->
+<div class="orient-overlay" id="orientOverlay">
+  <div class="orient-card">
+    <h3 style="color:#7f3;">Choose which number faces up:</h3>
+    <div class="orient-options" id="orientOptions"></div>
+    <button class="btn btn-pass" onclick="cancelOrient()">Cancel</button>
+  </div>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="game-over-overlay" id="gameOver">
+  <div class="game-over-card">
+    <h2>Game Over!</h2>
+    <div class="final-scores" id="finalScores"></div>
+    <div class="winner-text" id="winnerText"></div>
+    <button class="btn btn-new" onclick="location.reload()" style="margin-top:20px;">Play Again</button>
+  </div>
+</div>
+
+<!-- Game Header -->
+<div class="game-header" style="display:none" id="gameHeader">
+  <h1>MAGIC BEANS</h1>
+  <div class="subtitle">Build the tallest beanstalk!</div>
+</div>
+
+<div class="game-container" id="gameContainer" style="display:none;">
+  <div class="info-bar">
+    <div class="turn-indicator" id="turnIndicator"></div>
+    <div class="pile-count" id="pileCount"></div>
+    <div class="score-display" id="scoreDisplay"></div>
+  </div>
+  <div class="message-area">
+    <div class="message info" id="gameMessage">Waiting...</div>
+  </div>
+  <div id="beanstalksContainer"></div>
+  <div class="hand-area">
+    <div class="hand-label" id="handLabel">Your Hand</div>
+    <div class="hand-tiles" id="handTiles"></div>
+  </div>
+  <div class="actions" id="actionsArea">
+    <button class="btn btn-draw" id="btnDraw" onclick="drawTile()" style="display:none;">Draw from Pile</button>
+    <button class="btn btn-pass" id="btnPass" onclick="passTurn()" style="display:none;">Pass (Beaned Out!)</button>
+  </div>
+</div>
+
+<script>
+// ─── Connection ─────────────────────────────────────
+const socket = io();
+let myIdx = -1;
+let gameState = null;
+let roomCode = '';
+let pendingOrientTile = null;
+let pendingOrientIdx = -1;
+
+// ─── Speech ─────────────────────────────────────────
+function speak(text, rate, pitch) {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = rate || 1; u.pitch = pitch || 1; u.volume = 1;
+    window.speechSynthesis.speak(u);
+  }
+}
+
+// ─── Lobby ──────────────────────────────────────────
+function showTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', (tab === 'create' ? i === 0 : i === 1)));
+  document.getElementById('tab-create').classList.toggle('active', tab === 'create');
+  document.getElementById('tab-join').classList.toggle('active', tab === 'join');
+}
+
+// Picker buttons
+document.querySelectorAll('.picker').forEach(picker => {
+  picker.querySelectorAll('.picker-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      picker.querySelectorAll('.picker-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+});
+
+function getPickerVal(id) {
+  const active = document.querySelector(`#${id} .picker-btn.active`);
+  return active ? parseInt(active.dataset.val) : null;
+}
+
+function createRoom() {
+  const name = document.getElementById('createName').value.trim();
+  if (!name) return alert('Enter your name!');
+  const numPlayers = getPickerVal('playerCountPicker');
+  const tilesPerPlayer = getPickerVal('tileCountPicker');
+  if (numPlayers * tilesPerPlayer > 28) return alert('Too many tiles for this player count!');
+  socket.emit('createRoom', { playerName: name, numPlayers, tilesPerPlayer });
+}
+
+function joinRoom() {
+  const name = document.getElementById('joinName').value.trim();
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  if (!name) return alert('Enter your name!');
+  if (!code || code.length !== 4) return alert('Enter a 4-letter room code!');
+  socket.emit('joinRoom', { roomCode: code, playerName: name });
+}
+
+function copyRoomCode() {
+  navigator.clipboard.writeText(roomCode).then(() => {
+    document.getElementById('copyBtn').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('copyBtn').textContent = 'Copy Code', 2000);
+  });
+}
+
+// ─── Domino Rendering ───────────────────────────────
+function getPipPositions(n) {
+  const s = 33, p = 7, c = 16, q = 26;
+  return { 0:[], 1:[[c,c]], 2:[[p,p],[q,q]], 3:[[p,p],[c,c],[q,q]], 4:[[p,p],[q,p],[p,q],[q,q]], 5:[[p,p],[q,p],[c,c],[p,q],[q,q]], 6:[[p,p],[q,p],[p,c],[q,c],[p,q],[q,q]] }[n] || [];
+}
+
+function createDominoEl(tile, orientation) {
+  const el = document.createElement('div');
+  el.className = `domino ${orientation}`;
+  if (tile[0] === tile[1]) el.classList.add('magic-bean');
+  const h1 = document.createElement('div'); h1.className = 'half';
+  getPipPositions(tile[0]).forEach(([x,y]) => { const p = document.createElement('div'); p.className='pip'; p.style.left=(x-3)+'px'; p.style.top=(y-3)+'px'; h1.appendChild(p); });
+  const div = document.createElement('div'); div.className = 'divider';
+  const h2 = document.createElement('div'); h2.className = 'half';
+  getPipPositions(tile[1]).forEach(([x,y]) => { const p = document.createElement('div'); p.className='pip'; p.style.left=(x-3)+'px'; p.style.top=(y-3)+'px'; h2.appendChild(p); });
+  el.appendChild(h1); el.appendChild(div); el.appendChild(h2);
+  return el;
+}
+
+// ─── Rendering ──────────────────────────────────────
+function showMessage(text, type) {
+  const el = document.getElementById('gameMessage');
+  el.className = `message ${type || 'info'}`;
+  el.textContent = text;
+}
+
+function renderGame(gs) {
+  gameState = gs;
+  const isMyTurn = gs.currentPlayer === myIdx;
+
+  // Turn indicator
+  document.getElementById('turnIndicator').textContent = isMyTurn ? "Your turn!" : `${gs.players[gs.currentPlayer]}'s turn`;
+  document.getElementById('turnIndicator').style.color = isMyTurn ? '#7f3' : '#fa6';
+  document.getElementById('pileCount').textContent = `Pile: ${gs.pileCount}`;
+
+  // Scores
+  document.getElementById('scoreDisplay').innerHTML = gs.players.map((n, i) =>
+    `<span${i === myIdx ? ' style="color:#7f3;font-weight:bold"' : ''}>${n}: ${gs.scores[i]}</span>`
+  ).join('');
+
+  // Message
+  if (gs.message) showMessage(gs.message, gs.messageType || 'info');
+
+  // Beanstalks
+  const container = document.getElementById('beanstalksContainer');
+  container.innerHTML = '';
+  gs.players.forEach((name, i) => {
+    const area = document.createElement('div');
+    area.className = 'beanstalk-area' + (i === myIdx ? ' yours' : '');
+    const label = document.createElement('div'); label.className = 'beanstalk-label';
+    label.innerHTML = `<span>${name}${i === myIdx ? ' (You)' : ''}</span><span>${gs.scores[i]} pips</span>`;
+    area.appendChild(label);
+    const scroll = document.createElement('div'); scroll.className = 'beanstalk-scroll';
+    const chain = document.createElement('div'); chain.className = 'beanstalk-chain';
+    if (gs.beanstalks[i].length === 0) {
+      chain.innerHTML = '<span style="color:#666;font-style:italic;">No beans yet...</span>';
+    } else {
+      gs.beanstalks[i].forEach(tile => {
+        const isDbl = tile[0] === tile[1];
+        const el = isDbl ? createDominoEl(tile, 'horizontal') : createDominoEl([tile[1], tile[0]], 'vertical');
+        el.classList.add('played');
+        if (isDbl) el.classList.add('magic-bean-placed');
+        chain.appendChild(el);
+      });
+    }
+    scroll.appendChild(chain); area.appendChild(scroll); container.appendChild(area);
+  });
+
+  // Hand
+  document.getElementById('handLabel').textContent = `Your Hand (${gs.yourHand.length} tiles)`;
+  const handEl = document.getElementById('handTiles');
+  handEl.innerHTML = '';
+  gs.yourHand.forEach((tile, idx) => {
+    const el = createDominoEl(tile, 'horizontal');
+    const playable = isMyTurn && gs.phase !== 'steal' && canPlay(tile);
+    if (!playable) el.classList.add('disabled');
+    if (playable) el.addEventListener('click', () => selectTile(idx));
+    handEl.appendChild(el);
+  });
+
+  // Action buttons
+  const btnDraw = document.getElementById('btnDraw');
+  const btnPass = document.getElementById('btnPass');
+  const hasPlayable = isMyTurn && gs.yourHand.some(t => canPlay(t));
+
+  if (!isMyTurn || gs.phase === 'steal' || gs.phase === 'over') {
+    btnDraw.style.display = 'none';
+    btnPass.style.display = 'none';
+  } else if (hasPlayable) {
+    btnDraw.style.display = 'none';
+    btnPass.style.display = 'none';
+  } else if (gs.pileCount > 0) {
+    btnDraw.style.display = '';
+    btnPass.style.display = 'none';
+  } else {
+    btnDraw.style.display = 'none';
+    btnPass.style.display = '';
+  }
+}
+
+function canPlay(tile) {
+  if (!gameState) return false;
+  const bs = gameState.beanstalks[myIdx];
+  if (bs.length === 0) return true;
+  const top = bs[bs.length - 1][1];
+  return tile[0] === top || tile[1] === top;
+}
+
+// ─── Actions ────────────────────────────────────────
+function selectTile(idx) {
+  const tile = gameState.yourHand[idx];
+  const bs = gameState.beanstalks[myIdx];
+
+  if (bs.length === 0 && tile[0] !== tile[1]) {
+    // First tile, non-double: show orientation picker
+    pendingOrientTile = tile;
+    pendingOrientIdx = idx;
+    showOrientPicker(tile, idx);
+    return;
+  }
+
+  // Play directly (server auto-orients for non-first tiles)
+  socket.emit('playTile', { tileIdx: idx });
+  speak('bean', 1.2, 1);
+}
+
+function showOrientPicker(tile, idx) {
+  const opts = document.getElementById('orientOptions');
+  opts.innerHTML = '';
+  [[tile[0], tile[1]], [tile[1], tile[0]]].forEach(oriented => {
+    const wrap = document.createElement('div');
+    wrap.className = 'orient-option';
+    const lbl = document.createElement('div'); lbl.className = 'top-label';
+    lbl.textContent = oriented[1] + ' on top';
+    const el = createDominoEl([oriented[1], oriented[0]], 'vertical');
+    wrap.appendChild(lbl); wrap.appendChild(el);
+    wrap.addEventListener('click', () => {
+      document.getElementById('orientOverlay').classList.remove('visible');
+      socket.emit('chooseOrientation', { tileIdx: idx, oriented });
+      speak('bean', 1.2, 1);
+    });
+    opts.appendChild(wrap);
+  });
+  document.getElementById('orientOverlay').classList.add('visible');
+}
+
+function cancelOrient() {
+  document.getElementById('orientOverlay').classList.remove('visible');
+}
+
+function drawTile() {
+  socket.emit('drawTile');
+}
+
+function passTurn() {
+  socket.emit('passTurn');
+}
+
+function skipSteal() {
+  document.getElementById('stealOverlay').classList.remove('visible');
+  socket.emit('skipSteal');
+}
+
+function showStealPicker(beanstalks) {
+  const content = document.getElementById('stealContent');
+  content.innerHTML = '';
+  gameState.players.forEach((name, i) => {
+    if (i === myIdx) return;
+    if (beanstalks[i].length === 0) return;
+    const section = document.createElement('div'); section.className = 'steal-player-section';
+    const lbl = document.createElement('div'); lbl.className = 'label'; lbl.textContent = `${name}'s Beanstalk:`;
+    section.appendChild(lbl);
+    const row = document.createElement('div'); row.className = 'steal-tiles';
+    beanstalks[i].forEach((tile, tileIdx) => {
+      const isDbl = tile[0] === tile[1];
+      const el = createDominoEl(tile, 'vertical');
+      if (isDbl) {
+        el.classList.add('nosteal');
+      } else {
+        el.classList.add('stealable');
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+          document.getElementById('stealOverlay').classList.remove('visible');
+          socket.emit('stealTile', { fromPlayer: i, tileIdx });
+          speak('stolen!');
+        });
+      }
+      row.appendChild(el);
+    });
+    section.appendChild(row); content.appendChild(section);
+  });
+  document.getElementById('stealOverlay').classList.add('visible');
+}
+
+// ─── Socket Events ──────────────────────────────────
+socket.on('roomCreated', ({ roomCode: code }) => {
+  roomCode = code;
+  document.getElementById('lobbyScreen').classList.add('hidden');
+  document.getElementById('waitingScreen').classList.remove('hidden');
+  document.getElementById('roomCodeDisplay').textContent = code;
+});
+
+socket.on('playerJoined', ({ players, playerIdx }) => {
+  myIdx = playerIdx;
+  const list = document.getElementById('playerList');
+  list.innerHTML = '';
+  players.forEach((name, i) => {
+    const li = document.createElement('li');
+    li.textContent = name + (i === myIdx ? ' (You)' : '');
+    if (i === myIdx) li.classList.add('you');
+    list.appendChild(li);
+  });
+});
+
+socket.on('gameStart', (data) => {
+  myIdx = data.yourIdx;
+  document.getElementById('waitingScreen').classList.add('hidden');
+  document.getElementById('lobbyScreen').classList.add('hidden');
+  document.getElementById('gameHeader').style.display = '';
+  document.getElementById('gameContainer').style.display = '';
+  renderGame({
+    yourHand: data.yourHand, beanstalks: data.beanstalks,
+    currentPlayer: data.currentPlayer, pileCount: data.pileCount,
+    players: data.players, yourIdx: data.yourIdx,
+    scores: data.beanstalks.map(bs => bs.reduce((s,t) => s+t[0]+t[1], 0)),
+    phase: 'playing', message: data.currentPlayer === myIdx ? 'Your turn! Play a tile.' : `${data.players[data.currentPlayer]}'s turn`,
+    messageType: 'info',
+  });
+});
+
+socket.on('gameState', (data) => {
+  myIdx = data.yourIdx;
+  renderGame(data);
+});
+
+socket.on('orientationNeeded', ({ tile, tileIdx }) => {
+  showOrientPicker(tile, tileIdx);
+});
+
+socket.on('flyingDutchman', () => {
+  speak('FLYING DUTCHMAN!', 0.8, 0.5);
+  const overlay = document.getElementById('flyingDutchman');
+  overlay.classList.add('visible');
+  setTimeout(() => overlay.classList.remove('visible'), 2500);
+});
+
+socket.on('stealPhase', ({ beanstalks }) => {
+  if (gameState && gameState.currentPlayer === myIdx) {
+    speak('MAGIC BEAN!', 0.9, 1.3);
+    setTimeout(() => showStealPicker(beanstalks), 500);
+  } else {
+    speak('MAGIC BEAN!', 0.9, 1.3);
+  }
+});
+
+socket.on('lastChanceRound', ({ message }) => {
+  showMessage(message, 'lastChance');
+});
+
+socket.on('lastChanceDraw', ({ playerName, drawn, canPlay }) => {
+  const msg = canPlay
+    ? `${playerName} drew [${drawn[0]}|${drawn[1]}] and played it!`
+    : `${playerName} drew [${drawn[0]}|${drawn[1]}] — no match.`;
+  showMessage(msg, canPlay ? 'success' : 'warning');
+});
+
+socket.on('gameOver', ({ scores, winner, winnerIdx }) => {
+  const players = gameState ? gameState.players : [];
+  const scoresHtml = players.map((n, i) =>
+    `${n}: <b>${scores[i]}</b> beans${i === winnerIdx ? ' 👑' : ''}`
+  ).join('<br>');
+  document.getElementById('finalScores').innerHTML = scoresHtml;
+  document.getElementById('winnerText').textContent = winnerIdx === myIdx ? 'YOU WIN!' : `${winner} wins!`;
+  document.getElementById('gameOver').classList.add('visible');
+  if (winnerIdx === myIdx) speak('You win!', 0.8, 1.2);
+});
+
+socket.on('error', ({ message }) => {
+  showMessage(message, 'error');
+  // Also show alert in lobby
+  if (!document.getElementById('lobbyScreen').classList.contains('hidden') ||
+      !document.getElementById('waitingScreen').classList.contains('hidden')) {
+    alert(message);
+  }
+});
+
+socket.on('disconnect', () => {
+  showMessage('Disconnected from server!', 'error');
+});
+</script>
+</body>
+</html>

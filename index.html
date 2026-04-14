@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic Beans 🫘</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1a4a1a 0%, #2d6b2d 50%, #1a4a1a 100%);
+    min-height: 100vh;
+    color: #fff;
+    overflow-x: hidden;
+  }
+
+  .game-header {
+    text-align: center;
+    padding: 15px;
+    background: rgba(0,0,0,0.3);
+    border-bottom: 2px solid #4a2;
+  }
+
+  .game-header h1 {
+    font-size: 2em;
+    color: #7f3;
+    text-shadow: 0 0 20px rgba(100,255,50,0.5);
+    letter-spacing: 3px;
+  }
+
+  .game-header .subtitle {
+    font-size: 0.85em;
+    color: #9c9;
+    margin-top: 4px;
+  }
+
+  .game-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 10px;
+  }
+
+  /* Info bar */
+  .info-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 10px;
+    margin: 10px 0;
+  }
+
+  .turn-indicator {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #7f3;
+  }
+
+  .pile-count {
+    background: rgba(255,255,255,0.1);
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.9em;
+  }
+
+  .score-display {
+    display: flex;
+    gap: 20px;
+  }
+
+  .score-display span {
+    font-size: 0.95em;
+  }
+
+  /* Beanstalk area */
+  .beanstalk-area {
+    background: rgba(0,0,0,0.2);
+    border-radius: 15px;
+    padding: 15px;
+    margin: 10px 0;
+    min-height: 120px;
+    position: relative;
+  }
+
+  .beanstalk-label {
+    font-size: 0.85em;
+    color: #9c9;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .beanstalk-scroll {
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 300px;
+    padding: 10px 0;
+    scrollbar-width: thin;
+    scrollbar-color: #4a2 transparent;
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .beanstalk-scroll::-webkit-scrollbar { width: 6px; }
+  .beanstalk-scroll::-webkit-scrollbar-thumb { background: #4a2; border-radius: 3px; }
+
+  .beanstalk-chain {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 2px;
+    min-height: 50px;
+  }
+
+  /* Domino tiles */
+  .domino {
+    display: inline-flex;
+    background: #f5f0e0;
+    border-radius: 6px;
+    border: 2px solid #a89060;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .domino.horizontal {
+    flex-direction: row;
+    width: 70px;
+    height: 38px;
+  }
+
+  .domino.vertical {
+    flex-direction: column;
+    width: 38px;
+    height: 70px;
+  }
+
+  .domino .half {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .domino.horizontal .half {
+    width: 33px;
+    height: 34px;
+  }
+
+  .domino.vertical .half {
+    width: 34px;
+    height: 33px;
+  }
+
+  .domino .divider {
+    background: #a89060;
+  }
+
+  .domino.horizontal .divider {
+    width: 2px;
+    height: 100%;
+  }
+
+  .domino.vertical .divider {
+    width: 100%;
+    height: 2px;
+  }
+
+  .domino:hover:not(.played):not(.disabled) {
+    transform: translateY(-5px);
+    box-shadow: 2px 8px 15px rgba(0,0,0,0.4);
+    border-color: #7f3;
+  }
+
+  .domino.selected {
+    border-color: #7f3;
+    box-shadow: 0 0 15px rgba(100,255,50,0.5);
+    transform: translateY(-8px);
+  }
+
+  .domino.magic-bean {
+    background: linear-gradient(135deg, #ffe0f0, #fff0e0, #e0ffe0, #e0f0ff);
+    border-color: #c8a;
+    animation: magic-shimmer 2s infinite;
+  }
+
+  @keyframes magic-shimmer {
+    0%, 100% { box-shadow: 0 0 8px rgba(200,100,200,0.4); }
+    50% { box-shadow: 0 0 15px rgba(200,100,200,0.7); }
+  }
+
+  .domino.played {
+    cursor: default;
+  }
+
+  .domino.played.magic-bean-placed {
+    background: linear-gradient(135deg, #ffe0f0, #fff0e0, #e0ffe0, #e0f0ff);
+  }
+
+  .domino.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .domino.face-down {
+    background: linear-gradient(135deg, #3a6a3a, #2a5a2a);
+    border-color: #1a3a1a;
+    cursor: pointer;
+  }
+
+  .domino.face-down:hover {
+    border-color: #7f3;
+  }
+
+  /* Pip dots */
+  .pip {
+    width: 6px;
+    height: 6px;
+    background: #333;
+    border-radius: 50%;
+    position: absolute;
+  }
+
+  .domino.face-down .pip { display: none; }
+
+  /* Player hand area */
+  .hand-area {
+    background: rgba(0,0,0,0.25);
+    border-radius: 15px;
+    padding: 15px;
+    margin: 10px 0;
+  }
+
+  .hand-label {
+    font-size: 0.9em;
+    color: #9c9;
+    margin-bottom: 8px;
+  }
+
+  .hand-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    min-height: 50px;
+  }
+
+  /* Action buttons */
+  .actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 15px 0;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: 10px 25px;
+    border: none;
+    border-radius: 25px;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-play {
+    background: linear-gradient(135deg, #4a2, #7f3);
+    color: #000;
+  }
+
+  .btn-draw {
+    background: linear-gradient(135deg, #a64, #d96);
+    color: #fff;
+  }
+
+  .btn-pass {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+
+  .btn-new {
+    background: linear-gradient(135deg, #36a, #58d);
+    color: #fff;
+  }
+
+  .btn-end-left, .btn-end-right {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 8px 18px;
+    font-size: 0.85em;
+  }
+
+  .btn-end-left.active, .btn-end-right.active {
+    background: #4a2;
+    color: #fff;
+    border-color: #7f3;
+  }
+
+  /* End choice area */
+  .end-choice {
+    display: none;
+    justify-content: center;
+    gap: 10px;
+    margin: 8px 0;
+  }
+
+  .end-choice.visible {
+    display: flex;
+  }
+
+  /* Messages */
+  .message-area {
+    text-align: center;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .message {
+    font-size: 1.1em;
+    padding: 8px 20px;
+    border-radius: 20px;
+    animation: fadeIn 0.3s;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .message.info { background: rgba(100,200,255,0.2); color: #8df; }
+  .message.success { background: rgba(100,255,100,0.2); color: #7f3; }
+  .message.warning { background: rgba(255,200,100,0.2); color: #fa6; }
+  .message.magic { background: rgba(200,100,255,0.2); color: #d8f; }
+  .message.salute { background: rgba(255,200,50,0.3); color: #fd4; font-size: 1.3em; }
+
+  /* Flying Dutchman overlay */
+  .flying-dutchman-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+
+  .flying-dutchman-overlay.visible {
+    display: flex;
+    animation: fadeIn 0.3s;
+  }
+
+  .flying-dutchman-overlay .salute-text {
+    font-size: 3em;
+    color: #fd4;
+    text-shadow: 0 0 30px rgba(255,200,50,0.5);
+    margin-bottom: 20px;
+  }
+
+  .flying-dutchman-overlay .salute-emoji {
+    font-size: 5em;
+    animation: salute-bounce 0.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes salute-bounce {
+    from { transform: rotate(-10deg); }
+    to { transform: rotate(10deg); }
+  }
+
+  /* Game over overlay */
+  .game-over-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .game-over-overlay.visible {
+    display: flex;
+  }
+
+  .game-over-card {
+    background: linear-gradient(135deg, #1a3a1a, #2a5a2a);
+    border: 2px solid #4a2;
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    max-width: 400px;
+  }
+
+  .game-over-card h2 {
+    font-size: 2em;
+    color: #7f3;
+    margin-bottom: 20px;
+  }
+
+  .game-over-card .final-scores {
+    font-size: 1.2em;
+    margin: 20px 0;
+    line-height: 2;
+  }
+
+  .game-over-card .winner-text {
+    font-size: 1.5em;
+    color: #fd4;
+    margin: 15px 0;
+  }
+
+  /* Start screen */
+  .start-screen {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, #1a4a1a 0%, #2d6b2d 50%, #1a4a1a 100%);
+    z-index: 300;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .start-screen.hidden { display: none; }
+
+  .start-card {
+    text-align: center;
+    max-width: 500px;
+    padding: 40px;
+  }
+
+  .start-card h1 {
+    font-size: 3em;
+    color: #7f3;
+    text-shadow: 0 0 30px rgba(100,255,50,0.4);
+    margin-bottom: 10px;
+  }
+
+  .start-card .tagline {
+    color: #9c9;
+    font-size: 1.1em;
+    margin-bottom: 30px;
+  }
+
+  .start-card .player-inputs {
+    margin: 20px 0;
+  }
+
+  .start-card input {
+    display: block;
+    width: 100%;
+    padding: 12px 20px;
+    margin: 10px 0;
+    border: 2px solid #4a2;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.3);
+    color: #fff;
+    font-size: 1em;
+    outline: none;
+  }
+
+  .start-card input:focus {
+    border-color: #7f3;
+  }
+
+  .start-card .player-count {
+    margin: 20px 0;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .start-card .player-count-btn {
+    padding: 10px 20px;
+    border: 2px solid #4a2;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.3);
+    color: #9c9;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .start-card .player-count-btn.active {
+    border-color: #7f3;
+    color: #7f3;
+    background: rgba(100,255,50,0.1);
+  }
+
+  .rules-section {
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+    padding: 15px;
+    margin: 20px 0;
+    text-align: left;
+    font-size: 0.85em;
+    color: #9c9;
+    line-height: 1.6;
+  }
+
+  .rules-section h3 {
+    color: #7f3;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  /* Opponent hand (hidden tiles) */
+  .opponent-hand .domino {
+    background: linear-gradient(135deg, #3a6a3a, #2a5a2a);
+    border-color: #1a3a1a;
+    cursor: default;
+  }
+
+  .opponent-hand .domino .pip { display: none; }
+  .opponent-hand .domino .divider { background: #1a3a1a; }
+
+  @media (max-width: 600px) {
+    .game-header h1 { font-size: 1.4em; }
+    .info-bar { flex-direction: column; gap: 8px; font-size: 0.85em; }
+    .domino.horizontal { width: 56px; height: 30px; }
+    .domino.horizontal .half { width: 26px; height: 26px; }
+    .domino.vertical { width: 30px; height: 56px; }
+    .domino.vertical .half { width: 26px; height: 26px; }
+    .pip { width: 4px; height: 4px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div class="start-screen" id="startScreen">
+  <div class="start-card">
+    <h1>MAGIC BEANS</h1>
+    <p class="tagline">A domino beanstalk game</p>
+
+    <div class="player-count">
+      <button class="player-count-btn active" data-count="2">2 Players</button>
+      <button class="player-count-btn" data-count="3">3 Players</button>
+      <button class="player-count-btn" data-count="4">4 Players</button>
+    </div>
+
+    <div class="player-inputs" id="playerInputs">
+      <input type="text" id="p1name" placeholder="Player 1 name" value="Player 1">
+      <input type="text" id="p2name" placeholder="Player 2 name" value="Player 2">
+    </div>
+
+    <div style="margin: 20px 0;">
+      <label style="color:#9c9; font-size:0.95em;">Tiles per player at start:</label>
+      <div class="player-count" id="tileCountPicker">
+        <button class="player-count-btn" data-tiles="3">3</button>
+        <button class="player-count-btn" data-tiles="5">5</button>
+        <button class="player-count-btn active" data-tiles="7">7</button>
+        <button class="player-count-btn" data-tiles="9">9</button>
+      </div>
+      <div style="color:#666; font-size:0.8em;" id="tileWarning"></div>
+    </div>
+
+    <div class="rules-section">
+      <h3>How to Play</h3>
+      <p>&#8226; Build the longest beanstalk by matching domino ends<br>
+         &#8226; After each play, draw one tile from the pile<br>
+         &#8226; <b>Magic Beans</b> (doubles) give you an extra turn!<br>
+         &#8226; <b>Flying Dutchman</b> (double 6) — everyone must salute!<br>
+         &#8226; Can't play? Draw from pile until you can (or pile is empty)<br>
+         &#8226; Game ends when all players are stuck. Most pips wins!</p>
+    </div>
+
+    <button class="btn btn-play" onclick="startGame()" style="font-size:1.2em; padding: 15px 50px;">
+      PLANT THE BEANS!
+    </button>
+  </div>
+</div>
+
+<!-- Flying Dutchman Overlay -->
+<div class="flying-dutchman-overlay" id="flyingDutchman">
+  <div class="salute-emoji">🫡</div>
+  <div class="salute-text">FLYING DUTCHMAN!</div>
+  <p style="color:#ccc; font-size:1.1em;">Double 6! Everyone salute!</p>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="game-over-overlay" id="gameOver">
+  <div class="game-over-card">
+    <h2>Game Over!</h2>
+    <div class="final-scores" id="finalScores"></div>
+    <div class="winner-text" id="winnerText"></div>
+    <button class="btn btn-new" onclick="location.reload()" style="margin-top:20px;">
+      Play Again
+    </button>
+  </div>
+</div>
+
+<!-- Game Header -->
+<div class="game-header">
+  <h1>MAGIC BEANS</h1>
+  <div class="subtitle">Build the tallest beanstalk!</div>
+</div>
+
+<div class="game-container" id="gameContainer" style="display:none;">
+  <!-- Info bar -->
+  <div class="info-bar">
+    <div class="turn-indicator" id="turnIndicator">Player 1's turn</div>
+    <div class="pile-count" id="pileCount">Pile: 0</div>
+    <div class="score-display" id="scoreDisplay"></div>
+  </div>
+
+  <!-- Message -->
+  <div class="message-area">
+    <div class="message info" id="gameMessage">Select a tile to play</div>
+  </div>
+
+  <!-- Beanstalks -->
+  <div id="beanstalksContainer"></div>
+
+  <!-- Steal picker -->
+  <div id="stealPicker" style="display:none; flex-direction:column; align-items:center; background:rgba(100,0,150,0.15); border:2px solid #a6d; border-radius:12px; padding:15px; margin:10px 0;"></div>
+
+  <!-- Orientation picker -->
+  <div id="orientationPicker" style="display:none; flex-direction:column; align-items:center; background:rgba(0,0,0,0.3); border-radius:12px; padding:15px; margin:10px 0;"></div>
+
+  <!-- Current player hand -->
+  <div class="hand-area" id="currentHandArea">
+    <div class="hand-label" id="handLabel">Your Hand</div>
+    <div class="hand-tiles" id="handTiles"></div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions" id="actionsArea">
+    <button class="btn btn-draw" id="btnDraw" onclick="drawTile()">Draw from Pile</button>
+    <button class="btn btn-pass" id="btnPass" onclick="passTurn()" style="display:none;">Pass (Beaned Out!)</button>
+    <button class="btn btn-pass" onclick="endTurn()" id="btnEndTurn" style="display:none;">End Turn</button>
+  </div>
+</div>
+
+<script>
+// ─── Game State ─────────────────────────────────────────
+let state = {
+  players: [],
+  numPlayers: 2,
+  currentPlayer: 0,
+  pile: [],
+  beanstalks: [], // each player has their own beanstalk chain
+  hands: [],
+  selectedTile: null,
+  gamePhase: 'playing', // playing, endgame, over
+  beanedOut: [], // track who is beaned out
+  magicBeanBonus: false, // extra turn from magic bean
+  drewThisTurn: false, // only one draw per turn
+  passCount: 0,
+};
+
+// ─── Domino Generation ──────────────────────────────────
+function generateDominoes() {
+  const tiles = [];
+  for (let a = 0; a <= 6; a++) {
+    for (let b = a; b <= 6; b++) {
+      tiles.push([a, b]);
+    }
+  }
+  return tiles;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ─── Pip Rendering ──────────────────────────────────────
+function getPipPositions(n, halfSize) {
+  // halfSize ~33px for horizontal, ~34px for vertical
+  const s = halfSize || 33;
+  const p = Math.floor(s * 0.22);
+  const c = Math.floor(s * 0.5);
+  const q = Math.floor(s * 0.78);
+
+  const positions = {
+    0: [],
+    1: [[c, c]],
+    2: [[p, p], [q, q]],
+    3: [[p, p], [c, c], [q, q]],
+    4: [[p, p], [q, p], [p, q], [q, q]],
+    5: [[p, p], [q, p], [c, c], [p, q], [q, q]],
+    6: [[p, p], [q, p], [p, c], [q, c], [p, q], [q, q]],
+  };
+  return positions[n] || [];
+}
+
+function renderPips(value, halfEl) {
+  const pips = getPipPositions(value);
+  pips.forEach(([x, y]) => {
+    const pip = document.createElement('div');
+    pip.className = 'pip';
+    pip.style.left = (x - 3) + 'px';
+    pip.style.top = (y - 3) + 'px';
+    halfEl.appendChild(pip);
+  });
+}
+
+function createDominoEl(tile, orientation = 'horizontal', faceDown = false) {
+  const el = document.createElement('div');
+  el.className = `domino ${orientation}`;
+  if (faceDown) el.classList.add('face-down');
+  if (tile[0] === tile[1]) el.classList.add('magic-bean');
+
+  const half1 = document.createElement('div');
+  half1.className = 'half';
+  if (!faceDown) renderPips(tile[0], half1);
+
+  const divider = document.createElement('div');
+  divider.className = 'divider';
+
+  const half2 = document.createElement('div');
+  half2.className = 'half';
+  if (!faceDown) renderPips(tile[1], half2);
+
+  el.appendChild(half1);
+  el.appendChild(divider);
+  el.appendChild(half2);
+
+  el.dataset.a = tile[0];
+  el.dataset.b = tile[1];
+
+  return el;
+}
+
+// ─── Player Count Selection ─────────────────────────────
+// Player count picker
+document.querySelectorAll('.player-count-btn[data-count]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.player-count-btn[data-count]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.numPlayers = parseInt(btn.dataset.count);
+    updatePlayerInputs();
+    updateTileWarning();
+  });
+});
+
+// Tile count picker
+state.tilesPerPlayer = 7;
+document.querySelectorAll('#tileCountPicker .player-count-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#tileCountPicker .player-count-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.tilesPerPlayer = parseInt(btn.dataset.tiles);
+    updateTileWarning();
+  });
+});
+
+function updateTileWarning() {
+  const total = 28;
+  const needed = state.numPlayers * state.tilesPerPlayer;
+  const warn = document.getElementById('tileWarning');
+  if (needed > total) {
+    warn.textContent = `Not enough tiles! ${state.numPlayers} x ${state.tilesPerPlayer} = ${needed}, but only 28 tiles exist.`;
+    warn.style.color = '#f66';
+  } else {
+    warn.textContent = `${total - needed} tiles will be in the pile`;
+    warn.style.color = '#666';
+  }
+}
+
+function updatePlayerInputs() {
+  const container = document.getElementById('playerInputs');
+  container.innerHTML = '';
+  for (let i = 0; i < state.numPlayers; i++) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = `p${i + 1}name`;
+    input.placeholder = `Player ${i + 1} name`;
+    input.value = `Player ${i + 1}`;
+    container.appendChild(input);
+  }
+}
+
+// ─── Game Start ─────────────────────────────────────────
+function startGame() {
+  state.players = [];
+  for (let i = 0; i < state.numPlayers; i++) {
+    const input = document.getElementById(`p${i + 1}name`);
+    state.players.push(input.value || `Player ${i + 1}`);
+  }
+
+  // Generate and shuffle tiles
+  const allTiles = shuffle(generateDominoes());
+
+  // Deal 7 tiles each (or fewer if more players)
+  const tilesPerPlayer = state.tilesPerPlayer || 7;
+  if (tilesPerPlayer * state.numPlayers > 28) {
+    alert(`Not enough tiles! ${state.numPlayers} x ${tilesPerPlayer} = ${tilesPerPlayer * state.numPlayers}, but only 28 exist. Pick fewer tiles.`);
+    return;
+  }
+  state.hands = [];
+  state.beanstalks = [];
+  state.beanedOut = [];
+
+  for (let i = 0; i < state.numPlayers; i++) {
+    state.hands.push(allTiles.splice(0, tilesPerPlayer));
+    state.beanstalks.push([]);
+    state.beanedOut.push(false);
+  }
+
+  state.pile = allTiles;
+  state.currentPlayer = 0;
+  state.selectedTile = null;
+  state.gamePhase = 'playing';
+  state.magicBeanBonus = false;
+  state.passCount = 0;
+
+  // Hide start screen, show game
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('gameContainer').style.display = 'block';
+
+  renderAll();
+}
+
+// ─── Rendering ──────────────────────────────────────────
+function renderAll() {
+  renderInfoBar();
+  renderBeanstalks();
+  renderHand();
+  renderActions();
+}
+
+function renderInfoBar() {
+  const cp = state.currentPlayer;
+  document.getElementById('turnIndicator').textContent = `${state.players[cp]}'s turn`;
+  document.getElementById('pileCount').textContent = `Pile: ${state.pile.length} tiles`;
+
+  const scoreHtml = state.players.map((name, i) => {
+    const score = calcScore(i);
+    return `<span>${name}: ${score} beans</span>`;
+  }).join('');
+  document.getElementById('scoreDisplay').innerHTML = scoreHtml;
+}
+
+function calcScore(playerIdx) {
+  return state.beanstalks[playerIdx].reduce((sum, t) => sum + t[0] + t[1], 0);
+}
+
+function renderBeanstalks() {
+  const container = document.getElementById('beanstalksContainer');
+  container.innerHTML = '';
+
+  state.players.forEach((name, i) => {
+    const area = document.createElement('div');
+    area.className = 'beanstalk-area';
+
+    const label = document.createElement('div');
+    label.className = 'beanstalk-label';
+    label.innerHTML = `<span>${name}'s Beanstalk</span><span>${calcScore(i)} pips</span>`;
+    area.appendChild(label);
+
+    const scroll = document.createElement('div');
+    scroll.className = 'beanstalk-scroll';
+
+    const chain = document.createElement('div');
+    chain.className = 'beanstalk-chain';
+
+    if (state.beanstalks[i].length === 0) {
+      chain.innerHTML = '<span style="color:#666; font-style:italic;">No beans planted yet...</span>';
+    } else {
+      state.beanstalks[i].forEach(tile => {
+        const isDouble = tile[0] === tile[1];
+        // Doubles (magic beans) display horizontal — they're special
+        // Regular tiles display vertical, swapped for column-reverse
+        const el = isDouble
+          ? createDominoEl(tile, 'horizontal')
+          : createDominoEl([tile[1], tile[0]], 'vertical');
+        el.classList.add('played');
+        if (isDouble) el.classList.add('magic-bean-placed');
+        chain.appendChild(el);
+      });
+    }
+
+    scroll.appendChild(chain);
+    area.appendChild(scroll);
+    container.appendChild(area);
+  });
+}
+
+function renderHand() {
+  const cp = state.currentPlayer;
+  document.getElementById('handLabel').textContent = `${state.players[cp]}'s Hand (${state.hands[cp].length} tiles)`;
+
+  const handEl = document.getElementById('handTiles');
+  handEl.innerHTML = '';
+
+  state.hands[cp].forEach((tile, idx) => {
+    const el = createDominoEl(tile, 'horizontal');
+
+    // Check if playable
+    const playable = canPlayTile(tile, cp);
+    if (!playable) el.classList.add('disabled');
+
+    el.addEventListener('click', () => selectTile(idx));
+
+    if (state.selectedTile === idx) {
+      el.classList.add('selected');
+    }
+
+    handEl.appendChild(el);
+  });
+}
+
+function renderActions() {
+  const cp = state.currentPlayer;
+  const hand = state.hands[cp];
+  const hasPlayable = hand.some(t => canPlayTile(t, cp));
+
+  const btnDraw = document.getElementById('btnDraw');
+  const btnPass = document.getElementById('btnPass');
+  const btnEndTurn = document.getElementById('btnEndTurn');
+
+  if (hasPlayable) {
+    btnDraw.style.display = 'none';
+    btnPass.style.display = 'none';
+    btnEndTurn.style.display = 'none';
+    showMessage('Select a tile to play', 'info');
+  } else if (!state.drewThisTurn && state.pile.length > 0) {
+    btnDraw.style.display = '';
+    btnDraw.disabled = false;
+    btnPass.style.display = 'none';
+    btnEndTurn.style.display = 'none';
+    showMessage("Can't play? Draw one tile from the pile!", 'warning');
+  } else {
+    btnDraw.style.display = 'none';
+    btnPass.style.display = '';
+    btnEndTurn.style.display = 'none';
+    showMessage("Beaned out! Pass your turn.", 'warning');
+  }
+}
+
+// ─── Game Logic ─────────────────────────────────────────
+function canPlayTile(tile, playerIdx) {
+  const beanstalk = state.beanstalks[playerIdx];
+
+  // Empty beanstalk — anything can be played
+  if (beanstalk.length === 0) return true;
+
+  // Only match the top of the beanstalk (last tile's second value)
+  const topEnd = beanstalk[beanstalk.length - 1][1];
+
+  return tile[0] === topEnd || tile[1] === topEnd;
+}
+
+function selectTile(idx) {
+  const cp = state.currentPlayer;
+  const tile = state.hands[cp][idx];
+
+  if (!canPlayTile(tile, cp)) {
+    showMessage("That tile doesn't match the top!", 'warning');
+    return;
+  }
+
+  state.selectedTile = idx;
+
+  // Doubles — no orientation choice needed
+  if (tile[0] === tile[1]) {
+    playTile(idx, tile);
+    return;
+  }
+
+  const beanstalk = state.beanstalks[cp];
+
+  if (beanstalk.length === 0) {
+    // First tile — player picks which end faces up
+    showOrientationPicker(tile, idx);
+  } else {
+    // After first tile — auto-orient, no choice
+    const topEnd = beanstalk[beanstalk.length - 1][1];
+    if (tile[0] === topEnd) {
+      playTile(idx, [tile[0], tile[1]]);
+    } else {
+      playTile(idx, [tile[1], tile[0]]);
+    }
+  }
+}
+
+function showOrientationPicker(tile, tileIdx, topEnd) {
+  const picker = document.getElementById('orientationPicker');
+  const cp = state.currentPlayer;
+  const beanstalk = state.beanstalks[cp];
+
+  picker.innerHTML = '';
+
+  const label = document.createElement('div');
+  label.style.cssText = 'color:#9c9; margin-bottom:8px; font-size:0.9em;';
+  label.textContent = 'Choose which number faces up:';
+  picker.appendChild(label);
+
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex; gap:15px; justify-content:center; align-items:flex-end;';
+
+  // Option A: tile as [a, b] → b on top
+  // Option B: tile as [b, a] → a on top
+  const options = [
+    { placed: [tile[0], tile[1]], topLabel: tile[1], bottomLabel: tile[0] },
+    { placed: [tile[1], tile[0]], topLabel: tile[0], bottomLabel: tile[1] },
+  ];
+
+  options.forEach(opt => {
+    // Check if this orientation is valid
+    let valid = true;
+    if (beanstalk.length > 0) {
+      valid = opt.placed[0] === topEnd;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'text-align:center; cursor:' + (valid ? 'pointer' : 'not-allowed') + '; opacity:' + (valid ? '1' : '0.3') + ';';
+
+    const topNum = document.createElement('div');
+    topNum.style.cssText = 'font-size:1.1em; color:#7f3; font-weight:bold; margin-bottom:4px;';
+    topNum.textContent = opt.topLabel + ' on top';
+
+    const tileEl = createDominoEl(opt.placed, 'vertical');
+    tileEl.style.cssText += 'pointer-events:none;';
+
+    wrapper.appendChild(topNum);
+    wrapper.appendChild(tileEl);
+
+    if (valid) {
+      wrapper.addEventListener('click', () => {
+        picker.style.display = 'none';
+        playTile(tileIdx, opt.placed);
+      });
+    }
+
+    btnRow.appendChild(wrapper);
+  });
+
+  // Cancel button
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-pass';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'margin-left:10px; align-self:center;';
+  cancelBtn.addEventListener('click', () => {
+    state.selectedTile = null;
+    picker.style.display = 'none';
+    renderHand();
+  });
+  btnRow.appendChild(cancelBtn);
+
+  picker.appendChild(btnRow);
+  picker.style.display = 'flex';
+}
+
+function playTile(tileIdx, oriented) {
+  const cp = state.currentPlayer;
+  state.hands[cp].splice(tileIdx, 1);
+  const beanstalk = state.beanstalks[cp];
+  state.selectedTile = null;
+
+  document.getElementById('orientationPicker').style.display = 'none';
+
+  beanstalk.push([oriented[0], oriented[1]]);
+
+  const tile = oriented;
+
+  const isDouble = tile[0] === tile[1];
+  const isFlyingDutchman = tile[0] === 6 && tile[1] === 6;
+
+  // Sound effects
+  if (isFlyingDutchman) {
+    speak('FLYING DUTCHMAN!', 0.8, 0.5);
+  } else if (isDouble) {
+    speak('MAGIC BEAN!', 0.9, 1.3);
+  } else {
+    speak('bean', 1.2, 1);
+  }
+
+  // Draw from pile after playing
+  if (state.pile.length > 0) {
+    state.hands[cp].push(state.pile.pop());
+  }
+
+  state.beanedOut[cp] = false;
+  state.passCount = 0;
+
+  if (isFlyingDutchman) {
+    renderAll();
+    showFlyingDutchman(() => {
+      showMessage('FLYING DUTCHMAN! Steal a tile + extra turn!', 'salute');
+      state.magicBeanBonus = true;
+      showStealPicker(cp);
+    });
+    return;
+  }
+
+  if (isDouble) {
+    renderAll();
+    setTimeout(() => {
+      showMessage('Magic Bean! Steal a tile + extra turn!', 'magic');
+      state.magicBeanBonus = true;
+      showStealPicker(cp);
+    }, 600);
+    return;
+  }
+
+  state.magicBeanBonus = false;
+
+  // Check win condition
+  if (state.hands[cp].length === 0) {
+    renderAll();
+    checkGameEnd();
+    return;
+  }
+
+  // If in last chance round, move to next player after playing
+  if (state.gamePhase === 'lastChance') {
+    renderAll();
+    setTimeout(() => afterLastChancePlay(), 800);
+    return;
+  }
+
+  // Special 6 chain rule: if top is now 6 and player has a tile with 6, play again
+  const newTopEnd = beanstalk[beanstalk.length - 1][1];
+  if (newTopEnd === 6 && state.hands[cp].some(t => t[0] === 6 || t[1] === 6)) {
+    showMessage('6 on top! You have a 6 — play it now!', 'success');
+    state.sixChainBonus = true;
+    renderAll();
+    return;
+  }
+
+  state.sixChainBonus = false;
+  nextTurn();
+}
+
+function showStealPicker(cp) {
+  const picker = document.getElementById('stealPicker');
+  picker.innerHTML = '';
+
+  // Check if any other player has tiles in their beanstalk
+  const hasTargets = state.players.some((_, i) => i !== cp && state.beanstalks[i].length > 0);
+
+  if (!hasTargets) {
+    showMessage('Magic Bean! No tiles to steal. Extra turn!', 'magic');
+    picker.style.display = 'none';
+    renderAll();
+    return;
+  }
+
+  const label = document.createElement('div');
+  label.style.cssText = 'color:#d8f; margin-bottom:12px; font-size:1.1em; font-weight:bold;';
+  label.textContent = 'Steal a tile from another player\'s beanstalk!';
+  picker.appendChild(label);
+
+  state.players.forEach((name, i) => {
+    if (i === cp) return;
+    const beanstalk = state.beanstalks[i];
+    if (beanstalk.length === 0) return;
+
+    const section = document.createElement('div');
+    section.style.cssText = 'margin-bottom:15px;';
+
+    const playerLabel = document.createElement('div');
+    playerLabel.style.cssText = 'color:#9c9; font-size:0.9em; margin-bottom:6px;';
+    playerLabel.textContent = `${name}'s Beanstalk:`;
+    section.appendChild(playerLabel);
+
+    const tilesRow = document.createElement('div');
+    tilesRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; justify-content:center;';
+
+    beanstalk.forEach((tile, tileIdx) => {
+      const isDouble = tile[0] === tile[1];
+      const el = createDominoEl(tile, 'vertical');
+
+      if (isDouble) {
+        // Can't steal magic beans
+        el.style.opacity = '0.3';
+        el.style.cursor = 'not-allowed';
+      } else {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+          const stolen = state.beanstalks[i].splice(tileIdx, 1)[0];
+          state.hands[cp].push(stolen);
+          picker.style.display = 'none';
+          speak('stolen!');
+          showMessage(`Stole [${stolen[0]}|${stolen[1]}] from ${name}!`, 'magic');
+          renderAll();
+        });
+        el.addEventListener('mouseenter', () => {
+          el.style.border = '2px solid #d8f';
+          el.style.boxShadow = '0 0 12px rgba(200,100,255,0.6)';
+        });
+        el.addEventListener('mouseleave', () => {
+          el.style.border = '2px solid #a89060';
+          el.style.boxShadow = '2px 2px 5px rgba(0,0,0,0.3)';
+        });
+      }
+      tilesRow.appendChild(el);
+    });
+
+    section.appendChild(tilesRow);
+    picker.appendChild(section);
+  });
+
+  // Skip steal option
+  const skipBtn = document.createElement('button');
+  skipBtn.className = 'btn btn-pass';
+  skipBtn.textContent = 'Skip Steal';
+  skipBtn.addEventListener('click', () => {
+    picker.style.display = 'none';
+    renderAll();
+  });
+  picker.appendChild(skipBtn);
+
+  picker.style.display = 'flex';
+}
+
+function drawTile() {
+  const cp = state.currentPlayer;
+
+  if (state.pile.length === 0) {
+    showMessage('No tiles left in the pile!', 'warning');
+    return;
+  }
+
+  const drawn = state.pile.pop();
+  state.hands[cp].push(drawn);
+
+  // One draw only. If the drawn tile matches, player can play it.
+  // Otherwise, they keep it and turn passes to next player.
+  if (canPlayTile(drawn, cp)) {
+    showMessage(`Drew [${drawn[0]}|${drawn[1]}] — it matches! Play it now!`, 'success');
+    state.drewThisTurn = true;
+    renderAll();
+  } else {
+    showMessage(`Drew [${drawn[0]}|${drawn[1]}] — no match. Turn passes.`, 'warning');
+    renderAll();
+    setTimeout(() => nextTurn(), 1200);
+  }
+}
+
+function passTurn() {
+  const cp = state.currentPlayer;
+  state.beanedOut[cp] = true;
+  state.passCount++;
+  state.magicBeanBonus = false;
+
+  showMessage(`${state.players[cp]} is beaned out!`, 'warning');
+
+  if (state.passCount >= state.numPlayers) {
+    // Everyone beaned out
+    checkGameEnd();
+    return;
+  }
+
+  nextTurn();
+}
+
+function nextTurn() {
+  state.selectedTile = null;
+  state.magicBeanBonus = false;
+
+  // Find next player who isn't permanently out
+  let next = (state.currentPlayer + 1) % state.numPlayers;
+  let attempts = 0;
+  while (state.hands[next].length === 0 && attempts < state.numPlayers) {
+    next = (next + 1) % state.numPlayers;
+    attempts++;
+  }
+
+  if (attempts >= state.numPlayers) {
+    checkGameEnd();
+    return;
+  }
+
+  state.currentPlayer = next;
+  // Reset for new turn
+  state.beanedOut[next] = false;
+  state.drewThisTurn = false;
+  state.sixChainBonus = false;
+
+  renderAll();
+}
+
+function checkGameEnd() {
+  // If already did last chance round, finish the game
+  if (state.lastChanceDone) {
+    finishGame();
+    return;
+  }
+
+  // Collect all leftover hand tiles from all players into a shared pool
+  let lastChancePool = [];
+  state.players.forEach((_, i) => {
+    lastChancePool = lastChancePool.concat(state.hands[i].splice(0));
+  });
+
+  if (lastChancePool.length === 0) {
+    finishGame();
+    return;
+  }
+
+  // Shuffle the pool
+  shuffle(lastChancePool);
+
+  state.lastChancePool = lastChancePool;
+  state.lastChanceDone = true;
+  state.lastChancePlayerIdx = 0;
+  state.gamePhase = 'lastChance';
+
+  showMessage('Everyone beaned out! Leftover tiles mixed. One last draw each!', 'warning');
+  renderAll();
+
+  // Start last chance round from player 0
+  setTimeout(() => startLastChanceTurn(), 1200);
+}
+
+function startLastChanceTurn() {
+  const pi = state.lastChancePlayerIdx;
+
+  if (pi >= state.numPlayers || state.lastChancePool.length === 0) {
+    finishGame();
+    return;
+  }
+
+  state.currentPlayer = pi;
+  state.drewThisTurn = false;
+
+  // Draw one tile from the mixed pool
+  const drawn = state.lastChancePool.pop();
+  state.hands[pi].push(drawn);
+
+  showMessage(`${state.players[pi]} drew [${drawn[0]}|${drawn[1]}] — last chance!`, 'info');
+  renderAll();
+
+  if (canPlayTile(drawn, pi)) {
+    // Player can play it — let them
+    showMessage(`${state.players[pi]} drew [${drawn[0]}|${drawn[1]}] — it matches! Play it!`, 'success');
+    state.drewThisTurn = true;
+    renderAll();
+    // Player clicks tile to play, then afterLastChancePlay is called
+  } else {
+    // No match, keep it, move to next player
+    showMessage(`${state.players[pi]} drew [${drawn[0]}|${drawn[1]}] — no match. Kept.`, 'warning');
+    renderAll();
+    setTimeout(() => {
+      state.lastChancePlayerIdx++;
+      startLastChanceTurn();
+    }, 1200);
+  }
+}
+
+function afterLastChancePlay() {
+  state.lastChancePlayerIdx++;
+  startLastChanceTurn();
+}
+
+function finishGame() {
+  state.gamePhase = 'over';
+
+  const scores = state.players.map((name, i) => ({
+    name,
+    score: calcScore(i),
+  }));
+
+  scores.sort((a, b) => b.score - a.score);
+
+  const scoresHtml = scores.map(s => `${s.name}: <b>${s.score}</b> beans`).join('<br>');
+  document.getElementById('finalScores').innerHTML = scoresHtml;
+  document.getElementById('winnerText').textContent = `${scores[0].name} wins!`;
+  document.getElementById('gameOver').classList.add('visible');
+}
+
+function speak(text, rate = 1, pitch = 1) {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = rate;
+    utter.pitch = pitch;
+    utter.volume = 1;
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+function showFlyingDutchman(callback) {
+  const overlay = document.getElementById('flyingDutchman');
+  overlay.classList.add('visible');
+  setTimeout(() => {
+    overlay.classList.remove('visible');
+    callback();
+  }, 2500);
+}
+
+function showMessage(text, type = 'info') {
+  const el = document.getElementById('gameMessage');
+  el.className = `message ${type}`;
+  el.textContent = text;
+}
+
+function endTurn() {
+  nextTurn();
+}
+
+// Init
+updatePlayerInputs();
+</script>
+</body>
+</html>
